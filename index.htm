@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Type" value="text/html; charset=ISO-8859-1">
+  <title>Endlesss Bubble Pop</title>
+  <meta property="og:title" content="Endlesss Bubble Pop | Sit back and unwind by popping bubbles" />
+  <meta name="description" content="Sit back and unwind by popping bubbles. Relax and play this full-screen HTML5 game using your cursor. You can find the source on Github." />
+  <meta property="og:description" content="Endlesss Bubble Pop | Sit back and unwind by popping bubbles" />
+  <meta name="author" content="Zack Banack">
+  <link href="https://fonts.googleapis.com/css?family=Concert+One" rel="stylesheet">
+
+  <!-- Global site tag (gtag.js) - Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=UA-91441927-4"></script>
+  <script>
+  window.dataLayer = window.dataLayer || [];
+
+  function gtag() {
+    dataLayer.push(arguments);
+  }
+  gtag('js', new Date());
+  gtag('config', 'UA-91441927-4');
+  </script>
+  <style type="text/css">
+* {
+    -webkit-tap-highlight-color: rgba(0,0,0,0); /* make transparent link selection, adjust last value opacity 0 to 1.0 */
+}
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    margin: 0px;
+    border: 0;
+    overflow: hidden;
+    display: block;
+  }
+
+  #container {
+    position: relative;
+  }
+
+  #container canvas,
+  #overlay {
+    position: absolute;
+  }
+
+  #overlay {
+    background-color: rgba(255, 255, 255, 0);
+    font-family: 'Concert One', sans-serif;
+    font-size: 18px;
+    padding-left: 24px;
+    padding-right: 24px;
+    padding-bottom: 24px;
+  }
+
+  a:link,
+  a:active,
+  a:visited {
+    color: #303030;
+    text-decoration: none;
+  }
+
+  a:hover {
+    color: #000000;
+    text-decoration: underline;
+  }
+
+  .lock-screen {
+      height: 100%;
+      overflow: hidden;
+      width: 100%;
+      position: fixed;
+  }
+  </style>
+</head>
+
+<body>
+<div class = "lock-screen">
+  <div id="container"> <canvas id="myCanvas" width="640" height="320" style="border:1px solid #d3d3d3;">
+  Your browser does not support the HTML5 canvas tag.
+  </canvas>
+    <div id="overlay">
+      <p><b>Endless Bubble Pop</b><br><sub>&#187; <a href="https://zackbanack.com" target="_blank">Zack Banack</a>&nbsp;&#187; <a href="htttps://github.com/zbanack/bubbles" target="_blank">GitHub</a></sub>
+        <p id="popoutput"></p>
+      </p>
+    </div>
+  </div>
+  <script>
+  document.addEventListener("DOMContentLoaded", function() {
+
+    // mobile detection (thanks, https://www.bennadel.com/blog/1867-drawing-on-the-iphone-canvas-with-jquery-and-coldfusion.htm)
+    var isIPhone = (((new RegExp( "iPhone", "i")).test(navigator.userAgent)) || ((new RegExp( "Android", "i" )).test(navigator.userAgent)));
+
+    console.log(isIPhone);
+    /* Canvas reference and context */
+    var c = document.getElementById('myCanvas');
+    window.addEventListener('resize', resize);
+    var ctx = c.getContext("2d");
+
+    var mouse_coords = [-1,-1]; // mouse coordinates
+
+    var bubbles = 100;      // bubbles on-screen
+    if (isIPhone) bubbles = 50;
+    var pops = 0;           // # of bubbles popped
+    
+    // bubble sprites
+    var img = []; // bubble sprite
+    var images = 3;
+
+    // sfx
+    var sounds = 8;
+    var file = [];
+    var snd = [];
+    var sound_timer = 0;
+
+    var twitter_logo = "img/twitter-logo-silhouette.png";
+    
+    // trig, used for effects
+    var sin_val = [];
+    var cos_val = [];
+    var sin_inc = [];
+    var cos_inc = [];
+
+    // create arrays bubble-specific (i) vars, define in define(i);
+    var x = [];
+    var hold_x = [];
+    var y = [];
+    var yspeed = [];
+    var spr = [];
+    var rot = [];
+    var intensity = [];
+    var scale = [];
+    var alp = [];
+    var dest = [];
+
+    resize(); // fit canvas to screen
+
+    // pop sfx
+    for (var i = 0; i < sounds; i++) {
+      file[i] = "sfx/pop" + (i + 1) + ".wav";
+      snd[i] = new Audio(file[i]);
+    }
+
+    // create sprites
+    for(var i = 0; i < images; i++) {
+      img[i] = new Image();  
+      img[i].src = "img/bubble" + (i + 1) + ".png"; 
+    }
+    
+    // define bubble vars
+    for (var i = 0; i < bubbles; i++) {
+      define(i);
+    }
+
+    main(); // initialization
+
+    /**
+      * Return mouse x, y coordinates
+      */
+    function getMousePos(c, evt) {
+      var rect = c.getBoundingClientRect();
+      if (isIPhone) {
+        var touch = evt.touches[0];
+          return {
+            mouse_x: touch.pageX - rect.left,
+            mouse_y: touch.pageY - rect.top
+        }
+      }
+      else{
+        return {
+          mouse_x: evt.clientX - rect.left,
+          mouse_y: evt.clientY - rect.top
+        }
+      };
+    }
+
+    /**
+      * Mouse movement listener and coordinate fetcher
+      */
+    window.addEventListener('mousemove', coord, false);
+    window.addEventListener('touchmove', coord, false);
+
+    function coord(evt) {
+      mouse_coords = getMousePos(c, evt);
+    }
+
+    // define (random) vars
+    function define(i) {
+      // (x, y) coordinates
+      x[i] = Math.random() * c.width;
+      y[i] = Math.random() * c.height * 1.5;
+
+      spr[i] = img[Math.floor((Math.random() * images))];
+      hold_x[i] = x[i]; // duplicate x-coord so x can be manipulated about the copy
+      yspeed[i] = 4 + Math.random() * 5; // y change per frame
+
+      rot[i] = Math.random() * 360;
+      intensity[i] = 8 + (Math.random() * 8);
+
+      // sin, cos tracking and values
+      sin_val[i] = Math.random() * (Math.PI * 2);
+      cos_val[i] = Math.random() * (Math.PI * 2);
+      sin_inc[i] = 2 + (Math.random() * 2);
+      cos_inc[i] = 2 + (Math.random() * 2);
+
+      // scaling with 20% chance of shrinking
+      scale[i] = 0.5 + (Math.random() * 0.25);
+      if (Math.random() > 0.8) scale[i] -= 0.25;
+
+      alp[i] = 0.25 + (Math.random() * 0.5); // transparency
+      dest[i] = false; // not destroyed
+    }
+
+    /**
+      * Resize canvas to fit window
+      */
+    function resize() {
+      c.width = window.innerWidth;
+      c.height = window.innerHeight;
+    }
+
+    /**
+      * Clear canvas using white fill
+      */
+    function clearCanvas() {
+      // draw a white rectangle over the canvas
+      ctx.beginPath();
+      ctx.lineWidth = 0;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, c.width, c.height);
+      ctx.closePath();
+    }
+
+    /**
+      * The fun stuff
+      */
+    function main() {
+      setInterval(function() {
+        clearCanvas(); // clear canvas
+        sound_timer++; // inc sound allowance
+
+        // cycle through all bubble objects
+        for (var i = 0; i < bubbles; i++) {
+          // update trig values
+          sin_val[i] += sin_inc[i];
+          cos_val[i] += cos_inc[i];
+          y[i] -= yspeed[i]; // y-movement
+
+          // move bubbles horizontally, sine wave
+          x[i] = hold_x[i] + Math.sin((sin_val[i] * 0.2) * (Math.PI / 180)) * intensity[i] * (20 * scale[i]);
+
+          // x, y scale (in pixels) with applied trig
+          var xs = Math.sin((sin_val[i] * 2) * (Math.PI / 180)) * intensity[i];
+          var ys = Math.cos((cos_val[i] * 2) * (Math.PI / 180)) * intensity[i];
+
+          // track bubble's distance from mouse cursor
+          var mX = mouse_coords.mouse_x - (x[i] + (spr[i].width * 0.5 * scale[i]));
+          var mY = mouse_coords.mouse_y - (y[i] + (spr[i].height * 0.5 * scale[i]));
+          var mDist = Math.sqrt((mX * mX) + (mY * mY));
+
+          // bubble popping, if touching mouse
+          if (mDist < spr[i].width * 0.75 * scale[i] && !dest[i]) {
+            dest[i] = true;
+            pops++; // increase score
+
+            // twitter, update text in HUD, popoutput, <p>
+            var tweet_address = "https://twitter.com/intent/tweet?text=I mindlessly popped " + pops + " bubbles over at https://banack.me/playground/bubbles";
+            document.getElementById('popoutput').innerHTML = "<a href='" + tweet_address + "' target='_blank'><img src='" + twitter_logo + "' height='16' width='16'></a>&nbsp;" + pops + " bubbles popped";
+            
+            // play random sound if a frame (1) has elapsed
+            if (sound_timer > 1) {
+              sound_timer = 0;
+              var rnd = Math.floor((Math.random() * sounds));
+              snd[rnd].play();
+            }
+          }
+
+          // translate, rotate, and draw the bubble
+          ctx.save(); // save canvas orientation
+          ctx.translate(x[i] + ((spr[i].width * 0.5) * scale[i]), y[i] + ((spr[i].height * 0.5) * scale[i]));
+          ctx.rotate(rot[i] + ((Math.sin(sin_val[i] * (Math.PI / 180)) * 0.1)));
+          ctx.translate(-((spr[i].width * 0.5) * scale[i]), -((spr[i].height * 0.5) * scale[i]));
+          ctx.globalAlpha = alp[i];
+          ctx.drawImage(spr[i], -(xs * 0.5), -(ys * 0.5), (spr[i].width + xs) * scale[i], (spr[i].height + ys) * scale[i]);
+          ctx.restore();
+
+          // "destroy" (reset) bubble if popped or off-screen
+          if (y[i] < -spr[i].height * 1.5 || dest[i]) {
+            dest[i] = false;
+            define(i); // re-define vars
+
+            // send to new x, y coord (overriding the define() call's values)
+            x[i] = Math.random() * c.width;
+            y[i] = c.height + (spr[i].height * (2 + (Math.random() * 5)));
+          }
+        }
+      }, 1000 / 30); // 30 fps
+    }
+  });
+  </script>
+  </div>
+</body>
+
+</html>
